@@ -2,3 +2,14 @@
 - add azure installation instructions
 - estimate z corner pose with marker size if not azure
 - handle frame counter to consider also the not valid frames. 
+
+
+UPDATE readme with
+cmake -Bbuild
+cmake --build build --config Release
+
+Example HELP
+./build/Release/camera_apriltags.exe -h
+
+Example USE
+./build/Release/camera_apriltags.exe -c "azure" -i "G:\Drive condivisi\MirrorWorld\Test\20260102\01_raw\SN000368420812_cond_1_run_1.mkv" -o "G:\Drive condivisi\MirrorWorld\Test\20260102\02_preprocessing"
