@@ -64,7 +64,7 @@ typedef struct CameraOptions {
         camera_type(DEFAULT_CAMERA_DEVICE),
         error_fraction(1),
         device_num(0),
-        focal_length(500),
+        focal_length(6),
         tag_size(DEFAULT_TAG_SIZE_M),
         frame_width(0),
         frame_height(0),
@@ -80,7 +80,7 @@ typedef struct CameraOptions {
     std::string camera_type;
     double error_fraction;
     int device_num;
-    double focal_length;
+    at::real focal_length;
     double tag_size;
     int frame_width;
     int frame_height;
@@ -171,7 +171,7 @@ Run a tool to test tag detection. Options:\n\
  -c CAMERA       Use the given camera device, chose between \"azure\" or \"opencv\" (default \"%s\")\n\
  -e FRACTION     Set error detection fraction (default %f)\n\
  -d DEVICE       Set camera device number (default %d)\n\
- -F FLENGTH      Set the camera's focal length in pixels (default %f)\n\
+ -F FLENGTH      Set the camera's focal length in mm (default %f)\n\
  -z SIZE         Set the tag size in meters (default %f)\n\
  -W WIDTH        Set the camera image width in pixels\n\
  -H HEIGHT       Set the camera image height in pixels\n\
@@ -307,13 +307,8 @@ int main(int argc, char** argv) {
         cv::Point3d(-ss,  ss, 0),
     };
 
-    double f = opts.focal_length;
-
-    double K[9] = {
-        f, 0, opticalCenter.x,
-        0, f, opticalCenter.y,
-        0, 0, 1
-    };
+    at::real fx;
+    at::real fy;
 
     cv::Mat_<cv::Point3d> srcmat(npoints, 1, src);
 
@@ -448,10 +443,30 @@ int main(int argc, char** argv) {
 
             vc.open(opts.input_file_path);
 
+            at::real focal_length_mm = opts.focal_length; 
+
+            at::real pixel_size = 1.55;
+            at::real sensor_l = pixel_size*4056/1000.0; // in mm
+            at::real sensor_h = pixel_size*3040/1000.0; // in mm
+
+            fx = vc.get(cv::CAP_PROP_FRAME_WIDTH) * focal_length_mm / sensor_l;
+            fy = vc.get(cv::CAP_PROP_FRAME_HEIGHT) * focal_length_mm / sensor_h;
+
+            std::cout << "Sensor size: " << sensor_l << " x " << sensor_h << " mm" << std::endl;
+            std::cout << "Pixel size: " << pixel_size << " mm" << std::endl;
             std::cout << "Camera resolution: "
-                        << vc.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
-                        << vc.get(cv::CAP_PROP_FRAME_HEIGHT) << "\n";
+                            << vc.get(cv::CAP_PROP_FRAME_WIDTH) << "x"
+                            << vc.get(cv::CAP_PROP_FRAME_HEIGHT) << "\n";
             
+
+            std::cout << "Camera focal lengths (fx, fy): (" << fx << ", " << fy << ") pixels" << std::endl;
+
+            double K[9] = {
+                fx, 0, opticalCenter.x,
+                0, fy, opticalCenter.y,
+                0, 0, 1
+            };
+
         }
         else{
             std::cout << "\n[Live Camera Mode]" << std::endl;
@@ -613,7 +628,7 @@ int main(int argc, char** argv) {
                 else if (opts.camera_type == "opencv") {
                     
                     // Get the 4x4 transformation matrix (tag frame -> camera frame)
-                    cv::Mat_<double> M = CameraUtil::homographyToPose(f, f, s, detections[i].homography, false);
+                    cv::Mat_<double> M = CameraUtil::homographyToPose(fx, fy, s, detections[i].homography, false);
 
                     // Extract rotation (3x3) and translation (3x1) from the 4x4 matrix M
                     cv::Mat_<double> R = M.rowRange(0, 3).colRange(0, 3);
